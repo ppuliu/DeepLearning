@@ -1,4 +1,4 @@
-function [grad, cost]=dplRNNGrad(nin,nh,nout,para,input,output,lamda)
+function [cost,grad]=dplRNNGrad(nin,nh,nout,para,input,output,lambda)
 %DPLRNNGRAD calculates the cost and gradients of parameters for one scan
 %
 % SYNOPSIS: [grad, cost]=dplRNNGrad(nin,nh,nout,para,input,output,lamda=1)
@@ -6,12 +6,12 @@ function [grad, cost]=dplRNNGrad(nin,nh,nout,para,input,output,lamda)
 % INPUT nin : number of input units
 %		nh : number of hidden units
 %		nout : number of output units
-%		para : current values of parameters	1 x (nin*nh+nh**2+nh*nout)
-%		input : input tensor 	time x nin x batch size
-%		output : output tensor	time x nout x batch size
+%		para : current values of parameters (nh*nin+nh^2+nout*nh) x 1
+%		input : input tensor 	nin x T
+%		output : output tensor	nout x T
 %		lamda : regularization term                                     
 %
-% OUTPUT grad : gradient of para	1 x (nin*nh+nh**2+nh*nout)
+% OUTPUT grad : gradient of para	(nin*nh+nh**2+nh*nout) x 1
 %			cost : objective value                              
 %
 % REMARKS
@@ -27,67 +27,104 @@ if ~(ndims(input)==ndims(output))
     error('input and output dimentions must agree');
 end
 
-[T1,tnin, nBatch1]=size(input);
+[tnin, T1]=size(input);
 
 if ~(tnin==nin)
     error('input units must agree with nin');
 end
 
-[T2,tnout,nBatch2]=size(output);
+[tnout,T2]=size(output);
 
 if ~(tnout==nout)
     error('output units must agree with nout');
 end
 
-if ~(T1==T2 && nBatch1==nBatch2)
+if ~(T1==T2)
     error('input and output must have the same T and batch size');
 end
+
+T=T1;
 
 if ~(length(para)==nin*nh+nh*nh+nh*nout)
     error('para dimention does not match');
 end
 
-lamda=1;
+if ~exist('lambda','var')
+    lambda=1;
+end
 
 idx=1;
-wIn=reshape(para(idx:idx+nin*nh-1),[nin,nh]);
+wIn=reshape(para(idx:idx+nin*nh-1),[nh,nin]); % nh x nin
 wInGrad=zeros(size(wIn));
 idx=idx+nin*nh;
-wH=reshape(para(idx:idx+nh*nh-1),[nh,nh]);
+wH=reshape(para(idx:idx+nh*nh-1),[nh,nh]);  % nh x nh
 wHGrad=zeros(size(wH));
 idx=idx+nh*nh;
-wOut=reshape(para(idx:idx+nh*nout-1),[nh,nout]);
+wOut=reshape(para(idx:idx+nh*nout-1),[nout,nh]); % nout x nh
 wOutGrad=zeros(size(wOut));
-idx=idx+nh*nout-1;
 
-h0=zeros(1,nh); % initial hindden state
+% forward pass
 
-grad=zeros(1,nin*nh+nh*nh+nh*nout);
-%predicts=zeros(size(output));
-cost=0;
+diff=zeros(nout,T);
+h=zeros(nh,T);
+h0=zeros(nh,1); % initial hindden state
 
-for bidx=1:nBatch1
-    bin=reshape(input(:,:,bidx),[T1,nin]);
-    bh=zeros(T1,nh);   % T x nh
-    bhGrad=zeros(T1,nh);    % cache the gradients for hidden states
+hGrad=zeros(nh,T);
+dGrad=zeros(nout,T);
+
+for t=1:T
     htm1=h0;
-    for tidx=1:T1
-        [ht,htGrad]=dplActivationFunc(bin(tidx,:)*wIn+htm1*wH,'tanh');
-        bh(tidx,:)=ht;
-        bhGrad(tidx,:)=htGrad;
-        htm1=ht;
+    if(t>1)
+        htm1=h(:,t-1);
     end
-    [bout,boutGrad]=dplActivationFunc(bh*wOut,'sigmoid'); % T x nout
-    %predicts(:,:,bidx)=bout;
+    [ht,htGrad]=dplActivationFunc(wIn*input(:,t)+wH*htm1,'tanh');
+    [dt,dtGrad]=dplActivationFunc(wOut*ht,'sigmoid');
     
-    % for this batch
-    % calculate cost and gradents for parameters
-    % use mean square error lost 
-    diff=bout-output(:,:,bidx); % T x nout
-    cost=cost+(diff(:)'*diff(:))/2;
+    % cache the values
+    diff(:,t)=dt-output(:,t);
+    h(:,t)=ht;
+    hGrad(:,t)=htGrad;
+    dGrad(:,t)=dtGrad;
+end
+
+
+% calculate gradients
+theta=zeros(nh,T);
+
+t=T;
+while(t>0)
+    %disp(t);
+    theta_tp1=zeros(nh,1);  % nh x 1
+    if(t<T)
+        theta_tp1=theta(:,t+1);
+    end
     
-    wOutGrad=wOutGrad+sum(diff(:))*bh'*boutGrad;
-    wHGrad=wHGrad+sum(diff(:))*bh'*boutGrad*wOut';
+    theta_current=(wOut'*(diff(:,t).*dGrad(:,t))).*hGrad(:,t); % nh x 1
+    theta_t=theta_current+(wH'*theta_tp1).*hGrad(:,t); % attention, it's wH'
+    
+    theta(:,t)=theta_t;
+
+    if(t>1)
+        wHG_t=theta_t*h(:,t-1)';
+    else
+        wHG_t=theta_t*h0';
+    end
+    wInG_t=theta_t*input(:,t)';
+    wOutG_t=(diff(:,t).*dGrad(:,t))*h(:,t)';
+    
+    % sum them with previous gradients
+    wHGrad=wHGrad+wHG_t;
+    wInGrad=wInGrad+wInG_t;
+    wOutGrad=wOutGrad+wOutG_t;
+    
+    t=t-1;
+end
+
+cost=(diff(:)'*diff(:))/2;
+grad=wInGrad(:);
+grad=cat(1,grad,wHGrad(:));
+grad=cat(1,grad,wOutGrad(:));
+
     
 end
 

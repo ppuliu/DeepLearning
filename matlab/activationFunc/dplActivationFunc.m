@@ -28,7 +28,7 @@ else if(strcmp(method,'tanh'))
         val=tanh(input);
         grad=1-val.^2;
     else
-        val=null;
-        grad=null;
+        val=NaN;
+        grad=NaN;
     end
 end
