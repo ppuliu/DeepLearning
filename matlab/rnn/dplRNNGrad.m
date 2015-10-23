@@ -1,7 +1,7 @@
-function [cost,grad]=dplRNNGrad(nin,nh,nout,para,input,output,lambda)
+function [cost,grad]=dplRNNGrad(nin,nh,nout,para,input,output,reg,lambda)
 %DPLRNNGRAD calculates the cost and gradients of parameters for one scan
 %
-% SYNOPSIS: [grad, cost]=dplRNNGrad(nin,nh,nout,para,input,output,lamda=1)
+% SYNOPSIS: [cost, grad]=dplRNNGrad(nin,nh,nout,para,input,output,lamda=1)
 %
 % INPUT nin : number of input units
 %		nh : number of hidden units
@@ -40,7 +40,7 @@ if ~(tnout==nout)
 end
 
 if ~(T1==T2)
-    error('input and output must have the same T and batch size');
+    error('input and output must have the same T');
 end
 
 T=T1;
@@ -52,6 +52,11 @@ end
 if ~exist('lambda','var')
     lambda=1;
 end
+
+if ~exist('reg','var')
+    reg='L1';
+end
+    
 
 idx=1;
 wIn=reshape(para(idx:idx+nin*nh-1),[nh,nin]); % nh x nin
@@ -124,6 +129,17 @@ cost=(diff(:)'*diff(:))/2;
 grad=wInGrad(:);
 grad=cat(1,grad,wHGrad(:));
 grad=cat(1,grad,wOutGrad(:));
+
+if strcmp(reg,'L1')
+    %disp('using L1 regularization');
+    cost=cost+lambda*(sum(abs(para)));
+    grad=grad+lambda*((para>0)*2-1);
+else if strcmp(reg,'L2')
+        %disp('using L2 regularization');
+        cost=cost+lambda*(para'*para)/2;
+        grad=grad+lambda*para;
+    end
+end
 
     
 end

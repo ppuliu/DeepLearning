@@ -2,7 +2,7 @@
 nin=70;
 nh=5;
 nout=70;
-lambda=1;
+lambda=1.6;
 T=100;
 X=rand(nin,T);
 
@@ -12,8 +12,8 @@ output=X(:,2:T);
 para=rand(nin*nh + nh*nh + nh*nout,1)-0.5;
 
 tic
-numgrad=computeNumericalGradient( @(p) dplRNNGrad(nin,nh,nout,p,input,output,lambda), para);
-[~, grad]=dplRNNGrad(nin,nh,nout,para,input,output,lambda);
+numgrad=computeNumericalGradient( @(p) dplRNNGrad(nin,nh,nout,p,input,output,'L1',lambda), para);
+[~, grad]=dplRNNGrad(nin,nh,nout,para,input,output,'L1',lambda);
 disp([numgrad grad]); 
 diff = norm(numgrad-grad)/norm(numgrad+grad);
 disp(diff);  % Should be small. In our implementation, these values are
