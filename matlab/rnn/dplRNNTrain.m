@@ -31,6 +31,6 @@ options.display = 'on';
 options.DerivativeCheck = 'off';
 
 para=rand(nin*nh + nh*nh + nh*nout,1)-0.5;
-[cost, optpara] = minFunc( @(p)  dplRNNGrad(nin,nh,nout,p,input,output,reg,lambda), para, options);
+[optpara, cost] = minFunc( @(p)  dplRNNGrad(nin,nh,nout,p,input,output,reg,lambda), para, options);
 
 end

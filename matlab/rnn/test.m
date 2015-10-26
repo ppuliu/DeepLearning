@@ -1,7 +1,7 @@
 
-nin=70;
+nin=10;
 nh=5;
-nout=70;
+nout=10;
 lambda=1.6;
 T=100;
 X=rand(nin,T);

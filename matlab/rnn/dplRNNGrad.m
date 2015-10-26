@@ -23,6 +23,8 @@ function [cost,grad]=dplRNNGrad(nin,nh,nout,para,input,output,reg,lambda)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+lossFuncName='binary_crossentropy';
+
 if ~(ndims(input)==ndims(output))
     error('input and output dimentions must agree');
 end
@@ -69,7 +71,7 @@ wOut=reshape(para(idx:idx+nh*nout-1),[nout,nh]); % nout x nh
 wOutGrad=zeros(size(wOut));
 
 % forward pass
-
+cost=0;
 diff=zeros(nout,T);
 h=zeros(nh,T);
 h0=zeros(nh,1); % initial hindden state
@@ -84,9 +86,11 @@ for t=1:T
     end
     [ht,htGrad]=dplActivationFunc(wIn*input(:,t)+wH*htm1,'tanh');
     [dt,dtGrad]=dplActivationFunc(wOut*ht,'sigmoid');
+    [lt,ltGrad]=dplLossFunc(dt,output(:,t),lossFuncName);    % loss function
     
     % cache the values
-    diff(:,t)=dt-output(:,t);
+    cost=cost+lt;
+    diff(:,t)=ltGrad;
     h(:,t)=ht;
     hGrad(:,t)=htGrad;
     dGrad(:,t)=dtGrad;
@@ -124,8 +128,6 @@ while(t>0)
     
     t=t-1;
 end
-
-cost=(diff(:)'*diff(:))/2;
 grad=wInGrad(:);
 grad=cat(1,grad,wHGrad(:));
 grad=cat(1,grad,wOutGrad(:));
