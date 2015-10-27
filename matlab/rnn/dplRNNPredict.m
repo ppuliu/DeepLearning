@@ -1,4 +1,4 @@
-function [predictX, AUC]=dplRNNPredict(para, nin, nh, nout, input, plotfig, target)
+function [predictX, W, AUC]=dplRNNPredict(para, nin, nh, nout, input, plotfig, target)
 %do predictions using trained rnn
 %
 % SYNOPSIS: [predictX, AUC]=dplRNNPredict(para, nin, nh, nout, input, start_step, plotfig)
@@ -29,17 +29,23 @@ if ~exist('plotfig','var')
     plotfig=false;
 end
 
+W=cell(3,1);
+
 idx=1;
 wIn=reshape(para(idx:idx+nin*nh-1),[nh,nin]); % nh x nin
+W{1}=wIn;
 idx=idx+nin*nh;
 wH=reshape(para(idx:idx+nh*nh-1),[nh,nh]);  % nh x nh
+W{2}=wH;
 idx=idx+nh*nh;
 wOut=reshape(para(idx:idx+nh*nout-1),[nout,nh]); % nout x nh
+W{3}=wOut;
 
 
 % forward pass
 [~,T]=size(input);
 predictX=zeros(nout, T);
+
 h0=zeros(nh,1); % initial hindden state
 htm1=h0;
 for t=1:T
