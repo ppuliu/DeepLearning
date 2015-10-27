@@ -25,7 +25,7 @@ function [cost,optpara]=dplRNNTrain(nin, nh, nout, input, output, reg, lambda)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 options.Method = 'lbfgs'; 
-options.maxIter =500;  
+options.maxIter =200;  
 options.maxFunEvals = 100000;
 options.display = 'on';
 options.DerivativeCheck = 'off';

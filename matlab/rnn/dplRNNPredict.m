@@ -40,18 +40,15 @@ wOut=reshape(para(idx:idx+nh*nout-1),[nout,nh]); % nout x nh
 % forward pass
 [~,T]=size(input);
 predictX=zeros(nout, T);
-h=zeros(nh,T);
 h0=zeros(nh,1); % initial hindden state
-
+htm1=h0;
 for t=1:T
-    htm1=h0;
-    if(t>1)
-        htm1=h(:,t-1);
-    end
+    
     [ht,~]=dplActivationFunc(wIn*input(:,t)+wH*htm1,'tanh');
     [dt,~]=dplActivationFunc(wOut*ht,'sigmoid');
     
     % cache the values
+    htm1=ht;
     predictX(:,t)=dt;
     
 end

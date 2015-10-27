@@ -133,11 +133,11 @@ grad=cat(1,grad,wHGrad(:));
 grad=cat(1,grad,wOutGrad(:));
 
 if strcmp(reg,'L1')
-    %disp('using L1 regularization');
+    disp('using L1 regularization');
     cost=cost+lambda*(sum(abs(para)));
     grad=grad+lambda*((para>0)*2-1);
 else if strcmp(reg,'L2')
-        %disp('using L2 regularization');
+        disp('using L2 regularization');
         cost=cost+lambda*(para'*para)/2;
         grad=grad+lambda*para;
     end

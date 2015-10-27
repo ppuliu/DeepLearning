@@ -23,9 +23,11 @@ if(strcmp(lossFuncName,'mse'))
     cost=(t(:)'*t(:))/2;
     grad=t;
 else if(strcmp(lossFuncName,'binary_crossentropy'))
-       t=target.*log(predict)+(1-target).*log(1-predict);
+       lambda=0.5;  % this parameters controls how much postive or negative samples will be favoured
+       t=lambda*target.*log(predict)+(1-lambda)*(1-target).*log(1-predict);
        cost=-sum(t(:));
-       grad=(predict-target)./(predict.*(1-predict));
+       grad=-lambda*target./predict+(1-lambda)*(1-target)./(1-predict);
+       %grad=(predict-target)./(predict.*(1-predict));
     end
 end
 
