@@ -7,7 +7,7 @@ from sklearn.metrics import roc_auc_score
 from multi_rnn import *
 
 
-batch_size=10
+batch_size=1
 num_steps=100
 max_epoch=100
 
@@ -128,9 +128,9 @@ class TrainMultiRNN(object):
         except KeyboardInterrupt:
             print("WARNING: User interrupted program.")
 
-            finalizeAndSave = input("Do you want to save the latest data? [y/n]")
-            if finalizeAndSave != "n":
-                save_path= input("Save results to: ")
+            finalizeAndSave = raw_input("Do you want to save the latest data? [y/n]")
+            if finalizeAndSave != 'n':
+                save_path= raw_input("Save results to: ")
                 print("Saving latest results.")
                 self.save(save_path)
             else:
