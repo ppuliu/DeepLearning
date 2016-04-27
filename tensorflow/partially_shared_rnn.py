@@ -7,11 +7,11 @@ Create RNN model with partially shared variables
 """
 
 import tensorflow as tf
-from tensorflow.python.ops.rnn import *
+from tensorflow.python.ops import rnn
 
 class SharedRNN(object):
 
-    def __init__(self, config):
+    def __init__(self, config, fix_shared=False):
 
         shared_scope=tf.variable_scope('shared_variables')
 
@@ -47,7 +47,7 @@ class SharedRNN(object):
                 self._rnn_input = tf.nn.dropout(self._rnn_input, config.keep_prob)
 
             lengths=tf.fill([config.batch_size],config.num_steps)
-            self._rnn_output, state = dynamic_rnn(cell, self._rnn_input, lengths, initial_state=self._initial_state)
+            self._rnn_output, state = rnn.dynamic_rnn(cell, self._rnn_input, lengths, initial_state=self._initial_state)
 
             output_w = tf.get_variable('output_w', [config.cell_size, config.num_ch])
             logits = tf.reshape(tf.matmul(tf.reshape(self._rnn_output, (config.batch_size*config.num_steps,config.cell_size)),output_w),
@@ -61,6 +61,18 @@ class SharedRNN(object):
             self._final_state = state
 
             self._predicts=tf.sigmoid(logits)
+
+            # decide which variables to train
+            if fix_shared:
+                tvars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, config.name)
+            else:
+                tvars = tf.trainable_variables()
+
+            optimizer = tf.train.RMSPropOptimizer(config.learning_rate)
+            self._train_op = optimizer.minimize(self._loss, var_list=tvars)
+
+    def get_fixed_variables(self):
+        return tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'shared_variables')
 
     @property
     def inputs(self):
@@ -86,14 +98,18 @@ class SharedRNN(object):
     def predicts(self):
         return self._predicts
 
+    @property
+    def train_op(self):
+        return self._train_op
+
 class SharedRNNConfig(object):
     """configurations for sharedRNN"""
-    init_scale = 0.1
     num_layers = 1
-    cell_size = 200
+    cell_size = 120
     keep_prob = 1.0
-    batch_size=10
+    batch_size= 10
     num_steps = 100
     num_ch = 10
     share=[False]*num_layers
     name=None
+    learning_rate=0.1
