@@ -1,3 +1,4 @@
 # matlab ignores
 *.asv
 *.m~
+*.pyc
