@@ -106,7 +106,7 @@ class SharedRNN(object):
 
 class SharedRNNConfig(object):
     """configurations for sharedRNN"""
-    num_layers = 4
+    num_layers = 3
     cell_size = 120
     keep_prob = 1.0
     batch_size= 10
