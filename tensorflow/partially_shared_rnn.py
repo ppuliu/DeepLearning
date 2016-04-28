@@ -120,3 +120,4 @@ class SharedRNNConfig(object):
     share=[False, True, False]
     name=None
     learning_rate=0.1
+    max_grad_norm = 5

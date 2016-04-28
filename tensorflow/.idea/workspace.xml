@@ -24,8 +24,8 @@
       <file leaf-file-name="partially_shared_rnn.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/partially_shared_rnn.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="219">
-              <caret line="78" column="29" selection-start-line="78" selection-start-column="29" selection-end-line="78" selection-end-column="29" />
+            <state relative-caret-position="339">
+              <caret line="122" column="21" selection-start-line="122" selection-start-column="21" selection-end-line="122" selection-end-column="21" />
               <folding />
             </state>
           </provider>
@@ -184,8 +184,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/partially_shared_rnn.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="219">
-          <caret line="78" column="29" selection-start-line="78" selection-start-column="29" selection-end-line="78" selection-end-column="29" />
+        <state relative-caret-position="339">
+          <caret line="122" column="21" selection-start-line="122" selection-start-column="21" selection-end-line="122" selection-end-column="21" />
           <folding />
         </state>
       </provider>
