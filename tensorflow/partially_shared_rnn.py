@@ -74,7 +74,12 @@ class SharedRNN(object):
             #print [x.name for x in tvars]
 
             optimizer = tf.train.RMSPropOptimizer(config.learning_rate)
-            self._train_op = optimizer.minimize(self._loss, var_list=tvars)
+            #self._train_op = optimizer.minimize(self._loss, var_list=tvars)
+
+            # manual clipping
+            grads, _ = tf.clip_by_global_norm(tf.gradients(self._loss, tvars),
+                                              config.max_grad_norm)
+            self._train_op = optimizer.apply_gradients(zip(grads, tvars))
 
     @property
     def inputs(self):
