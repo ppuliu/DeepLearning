@@ -6,10 +6,15 @@ from sklearn.metrics import roc_auc_score
 
 from multi_rnn import *
 
-
-batch_size=1
+batch_size=10
 num_steps=100
 max_epoch=100
+
+flags = tf.flags
+flags.DEFINE_string(
+    "log_dir", "./logdir","log directory")
+
+FLAGS = flags.FLAGS
 
 class TrainMultiRNN(object):
 
@@ -30,6 +35,24 @@ class TrainMultiRNN(object):
         session=tf.Session()
         session.run(tf.initialize_all_variables())
         self._sess=session
+
+        # set up summaries
+        self.add_summaries()
+        self._summary_op=tf.merge_all_summaries()
+        self._summary_writer = tf.train.SummaryWriter(FLAGS.log_dir, self._sess.graph)
+
+    def add_summaries(self):
+        var_list=tf.all_variables()
+        for var in var_list:
+            # if len(var.get_shape())>0:
+            #     tf.histogram_summary(var.name, var)
+            # else:
+            #     tf.scalar_summary(var.name, var)
+            tf.scalar_summary(var.name+'_max', tf.reduce_max(var))
+            tf.scalar_summary(var.name+'_min', tf.reduce_min(var))
+            tf.scalar_summary(var.name+'_mean', tf.reduce_mean(var))
+        for i in xrange(len(self._multi_rnn.loss_ops)):
+            tf.scalar_summary('loss_{}'.format(i+1), self._multi_rnn.get_loss(i))
 
     def read_files(self, file_dir):
         """
@@ -66,7 +89,7 @@ class TrainMultiRNN(object):
         """
         data = np.genfromtxt(file_path, delimiter=',')
         _, num_ch = data.shape
-        config=self.get_config(file_path,num_ch)
+        config=self.get_config(os.path.basename(file_path),num_ch)
 
         return data, config
 
@@ -97,7 +120,7 @@ class TrainMultiRNN(object):
 
     def partially_train(self, checkpoint_file):
 
-        saver = tf.train.Saver(var_list=self._multi_rnn.get_fixed_variables())
+        saver = tf.train.Saver(var_list=self._multi_rnn.fixed_variables)
         saver.restore(self._sess, checkpoint_file)
 
         self.train()
@@ -114,8 +137,8 @@ class TrainMultiRNN(object):
             session=self._sess
 
             for i in range(max_epoch):
-                train_perplexity=self.run_epoch_training(session,self._train_data_list,verbose=True)
-                print("Epoch: %d Train Perplexity: %.3f" % (i + 1, train_perplexity))
+                train_perplexity=self.run_epoch_training(session,self._train_data_list,i,verbose=True)
+                print("Epoch: %d Train Loss: %.3f" % (i + 1, train_perplexity))
 
                 train_roc_auc = self.run_eval(session, self._train_data_list, verbose=True)
                 print("Epoch: %d Train ROC-AUC: %.3f" % (i + 1, train_roc_auc))
@@ -130,13 +153,10 @@ class TrainMultiRNN(object):
 
             finalizeAndSave = raw_input("Do you want to save the latest data? [y/n]")
             if finalizeAndSave != 'n':
-                save_path= raw_input("Save results to: ")
-                print("Saving latest results.")
-                self.save(save_path)
+                self.close_and_save()
             else:
+                self.close()
                 print("Results deleted.")
-
-            self.close()
 
     def eval(self):
 
@@ -151,7 +171,7 @@ class TrainMultiRNN(object):
         print("Test ROC-AUC: %.3f" % test_roc_auc)
 
 
-    def run_epoch_training(self, session, data_list, verbose=False):
+    def run_epoch_training(self, session, data_list, num_epoch, verbose=False):
         """Go through all the datasets once"""
         num_datasets=len(data_list)
 
@@ -159,13 +179,16 @@ class TrainMultiRNN(object):
         epoch_size=0
         for data in data_list:
             total_steps, _ = data.shape
-            curr_size=(total_steps - num_steps) // batch_size
+            curr_size=(total_steps // num_steps) // batch_size
+            #print total_steps
             epoch_size=max(epoch_size, curr_size)
+        #print epoch_size
 
         start_time = time.time()
         loss = 0.0
         iters = 0
 
+        all_data_feed = {}
         for step in xrange(epoch_size):
             loss_list=[]
             for data_index in xrange(num_datasets):
@@ -187,19 +210,26 @@ class TrainMultiRNN(object):
                 input_placeholder=self._multi_rnn.get_input_placeholder(data_index)
                 output_placeholder=self._multi_rnn.get_output_placeholder(data_index)
 
-                _, curr_loss = session.run([train_op,loss_op],
-                                             {input_placeholder: x,
-                                              output_placeholder: y})
+                feed_dict={input_placeholder: x, output_placeholder: y}
+                _, curr_loss = session.run([train_op,loss_op], feed_dict)
                 loss_list.append(curr_loss)
                 loss += curr_loss
                 iters += 1
 
-            if verbose and step % (epoch_size // 10) == 10:
-                print("%.3f perplexity: %.3f speed: %.0f batches/sec" %
-                    (step * 1.0 / epoch_size, np.exp(loss / iters),
+                # gather placeholder data
+                all_data_feed.update(feed_dict)
+
+            if verbose and step % (epoch_size // 10) == 0:
+                print("%.3f loss: %.3f speed: %.0f batches/sec" %
+                    (step * 1.0 / epoch_size, loss / iters,
                      iters / (time.time() - start_time)))
 
-        return np.exp(loss / iters)
+                # write summaries
+                summary_str = session.run(self._summary_op, all_data_feed)
+                self._summary_writer.add_summary(summary_str, iters+num_epoch*epoch_size*num_datasets)
+                self._summary_writer.flush()
+
+        return loss / iters
 
     def run_eval(self, session, data_list, verbose=False):
 
@@ -243,8 +273,8 @@ class TrainMultiRNN(object):
 
                 iters += 1
 
-                y_true= np.append(y_true, y[:, 50:-1, :])
-                y_predict=np.append(y_predict, predicts[:, 50:-1, :])
+                y_true= np.append(y_true, y[:, :, :])
+                y_predict=np.append(y_predict, predicts[:, :, :])
 
         return roc_auc_score(y_true, y_predict)
 
@@ -255,14 +285,26 @@ class TrainMultiRNN(object):
 
     def save(self, path):
         saver = tf.train.Saver()
-        saver.Save(self._sess, path)
+        saver.save(self._sess, path)
+
+    def close_and_save(self):
+        save_path = raw_input("Save results to: ")
+        print("Saving latest results.")
+        self.save(os.path.join(FLAGS.log_dir, save_path))
+        self._summary_writer.close()
+        self._sess.close()
 
     def close(self):
-
+        self._summary_writer.close()
         self._sess.close()
 
 if __name__ == "__main__":
     file_dir=sys.argv[1]
+    FLAGS.log_dir=sys.argv[2]
 
-    m=TrainMultiRNN(file_dir)
+    m=TrainMultiRNN(file_dir, fix_shared=False)
     m.train()
+    #m.partially_train('../../../log_dir/test.ckt')
+    # m.restore('test.ckt')
+    # print '---'
+    # m.eval()

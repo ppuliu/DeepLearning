@@ -9,12 +9,19 @@ class MultiRNN(object):
         self._predicts=[]
         self._models=[]
         self._loss=[]
-        for config in configs:
-            shared_rnn=SharedRNN(config, fix_shared)
+        for i in xrange(len(configs)):
+            config=configs[i]
+            if i==0:
+                shared_rnn=SharedRNN(config, reuse=False, fix_shared=fix_shared)
+            else:
+                shared_rnn = SharedRNN(config, reuse=True, fix_shared=fix_shared)
             self._models.append(shared_rnn)
             self._predicts.append(shared_rnn.predicts)
             self._loss.append(shared_rnn.loss)
             self._train_ops.append(shared_rnn.train_op)
+
+        with tf.variable_scope('shared_variables') as shared_scope:
+            self._fixed_variables=tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, shared_scope.name)
 
     def get_input_placeholder(self, index):
         return self._models[index].inputs
@@ -32,6 +39,10 @@ class MultiRNN(object):
         return self._loss[index]
 
     @property
+    def fixed_variables(self):
+        return  self._fixed_variables
+
+    @property
     def models(self):
         return self._models
 
@@ -42,5 +53,9 @@ class MultiRNN(object):
     @property
     def train_ops(self):
         return self._train_ops
+
+    @property
+    def loss_ops(self):
+        return self._loss
 
 

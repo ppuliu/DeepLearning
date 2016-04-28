@@ -7,13 +7,16 @@ Create RNN model with partially shared variables
 """
 
 import tensorflow as tf
-from tensorflow.python.ops import rnn
+import rnn
+import rnn_cell
+
 
 class SharedRNN(object):
 
-    def __init__(self, config, fix_shared=False):
+    def __init__(self, config, reuse=False, fix_shared=False):
 
-        shared_scope=tf.variable_scope('shared_variables')
+        with tf.variable_scope('shared_variables') as shared_scope:
+            pass
 
         with tf.variable_scope(config.name):
             self._inputs = tf.placeholder(tf.float32, [config.batch_size, config.num_steps, config.num_ch])
@@ -23,20 +26,18 @@ class SharedRNN(object):
             for i in xrange(config.num_layers):
                 # decide whether to share the variables or not based on share list
                 if config.share[i]:
-                    cell_scope=tf.variable_scope(shared_scope,reuse=True)
+                    with tf.variable_scope(shared_scope, reuse=reuse):
+                        with tf.variable_scope('Cell{}'.format(i)) as cell_sope:
+                            lstm_cell = rnn_cell.BasicLSTMCell(config.cell_size, forget_bias=0.0, scope=cell_sope)
                 else:
-                    cell_scope = tf.variable_scope('cell_layer_{0}'.format(i))
-                with cell_scope:
-                    # Slightly better results can be obtained with forget gate biases
-                    # initialized to 1 but the hyperparameters of the model would need to be
-                    # different than reported in the paper.
-                    lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(config.cell_size, forget_bias=0.0)
-                    if config.keep_prob < 1:
-                        lstm_cell = tf.nn.rnn_cell.DropoutWrapper(
-                            lstm_cell, output_keep_prob=config.keep_prob)
-                    cell_list.append(lstm_cell)
+                    lstm_cell = rnn_cell.BasicLSTMCell(config.cell_size, forget_bias=0.0)
 
-            cell = tf.nn.rnn_cell.MultiRNNCell(cell_list)
+                if config.keep_prob < 1:
+                    lstm_cell = rnn_cell.DropoutWrapper(
+                        lstm_cell, output_keep_prob=config.keep_prob)
+                cell_list.append(lstm_cell)
+
+            cell = rnn_cell.MultiRNNCell(cell_list)
 
             self._initial_state = cell.zero_state(config.batch_size, tf.float32)
 
@@ -64,15 +65,16 @@ class SharedRNN(object):
 
             # decide which variables to train
             if fix_shared:
-                tvars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, config.name)
+                tvars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, tf.get_variable_scope().name)
             else:
                 tvars = tf.trainable_variables()
 
+            #print tf.get_variable_scope().name
+            #print [x.name for x in tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)]
+            #print [x.name for x in tvars]
+
             optimizer = tf.train.RMSPropOptimizer(config.learning_rate)
             self._train_op = optimizer.minimize(self._loss, var_list=tvars)
-
-    def get_fixed_variables(self):
-        return tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'shared_variables')
 
     @property
     def inputs(self):
@@ -104,12 +106,12 @@ class SharedRNN(object):
 
 class SharedRNNConfig(object):
     """configurations for sharedRNN"""
-    num_layers = 1
+    num_layers = 4
     cell_size = 120
     keep_prob = 1.0
     batch_size= 10
     num_steps = 100
     num_ch = 10
-    share=[False]*num_layers
+    share=[False, True, False]
     name=None
     learning_rate=0.1
