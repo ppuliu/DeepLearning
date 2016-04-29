@@ -77,10 +77,11 @@ class SharedRNN(object):
             #self._train_op = optimizer.minimize(self._loss, var_list=tvars)
 
             # manual clipping
+	    #optimizer = tf.train.MomentumOptimizer(config.learning_rate,0.9)
             grads, _ = tf.clip_by_global_norm(tf.gradients(self._loss, tvars),
                                               config.max_grad_norm)
             self._train_op = optimizer.apply_gradients(zip(grads, tvars))
-
+		
     @property
     def inputs(self):
         return self._inputs
@@ -111,13 +112,13 @@ class SharedRNN(object):
 
 class SharedRNNConfig(object):
     """configurations for sharedRNN"""
-    num_layers = 3
-    cell_size = 120
+    num_layers = 1 
+    cell_size = 150 
     keep_prob = 1.0
     batch_size= 10
     num_steps = 100
     num_ch = 10
-    share=[False, True, False]
+    share=[True]
     name=None
     learning_rate=0.1
-    max_grad_norm = 5
+    max_grad_norm = 5 

@@ -6,7 +6,7 @@ from sklearn.metrics import roc_auc_score
 
 from multi_rnn import *
 
-batch_size=10
+batch_size=1
 num_steps=100
 max_epoch=100
 
@@ -51,6 +51,7 @@ class TrainMultiRNN(object):
             tf.scalar_summary(var.name+'_max', tf.reduce_max(var))
             tf.scalar_summary(var.name+'_min', tf.reduce_min(var))
             tf.scalar_summary(var.name+'_mean', tf.reduce_mean(var))
+	    pass
         for i in xrange(len(self._multi_rnn.loss_ops)):
             tf.scalar_summary('loss_{}'.format(i+1), self._multi_rnn.get_loss(i))
 
@@ -117,6 +118,8 @@ class TrainMultiRNN(object):
             self._train_data_list.append(data[0:train_len,:])
             self._val_data_list.append(data[train_len:train_len + val_len, :])
             self._test_data_list.append(data[train_len + val_len:-1, :])
+	
+	print self._train_data_list[0].shape
 
     def partially_train(self, checkpoint_file):
 
@@ -140,8 +143,8 @@ class TrainMultiRNN(object):
                 train_perplexity=self.run_epoch_training(session,self._train_data_list,i,verbose=True)
                 print("Epoch: %d Train Loss: %.3f" % (i + 1, train_perplexity))
 
-                train_roc_auc = self.run_eval(session, self._train_data_list, verbose=True)
-                print("Epoch: %d Train ROC-AUC: %.3f" % (i + 1, train_roc_auc))
+                #train_roc_auc = self.run_eval(session, self._train_data_list, verbose=True)
+                #print("Epoch: %d Train ROC-AUC: %.3f" % (i + 1, train_roc_auc))
                 val_roc_auc = self.run_eval(session, self._val_data_list, verbose=True)
                 print("Epoch: %d Valid ROC-AUC: %.3f" % (i + 1, val_roc_auc))
 
@@ -180,9 +183,10 @@ class TrainMultiRNN(object):
         for data in data_list:
             total_steps, _ = data.shape
             curr_size=(total_steps // num_steps) // batch_size
-            #print total_steps
+            print total_steps
+	    print num_steps
             epoch_size=max(epoch_size, curr_size)
-        #print epoch_size
+        print epoch_size
 
         start_time = time.time()
         loss = 0.0
@@ -225,9 +229,9 @@ class TrainMultiRNN(object):
                      iters / (time.time() - start_time)))
 
                 # write summaries
-                summary_str = session.run(self._summary_op, all_data_feed)
-                self._summary_writer.add_summary(summary_str, iters+num_epoch*epoch_size*num_datasets)
-                self._summary_writer.flush()
+                #summary_str = session.run(self._summary_op, all_data_feed)
+                #self._summary_writer.add_summary(summary_str, iters+num_epoch*epoch_size*num_datasets)
+                #self._summary_writer.flush()
 
         return loss / iters
 
@@ -239,7 +243,7 @@ class TrainMultiRNN(object):
         epoch_size = 0
         for data in data_list:
             total_steps, _ = data.shape
-            curr_size = (total_steps - num_steps) // batch_size
+            curr_size = (total_steps // num_steps) // batch_size
             epoch_size = max(epoch_size, curr_size)
 
         iters = 0
@@ -273,8 +277,8 @@ class TrainMultiRNN(object):
 
                 iters += 1
 
-                y_true= np.append(y_true, y[:, :, :])
-                y_predict=np.append(y_predict, predicts[:, :, :])
+                y_true= np.append(y_true, y.flatten())
+                y_predict=np.append(y_predict, predicts.flatten())
 
         return roc_auc_score(y_true, y_predict)
 
@@ -302,9 +306,9 @@ if __name__ == "__main__":
     file_dir=sys.argv[1]
     FLAGS.log_dir=sys.argv[2]
 
-    m=TrainMultiRNN(file_dir, fix_shared=False)
-    m.train()
-    #m.partially_train('../../../log_dir/test.ckt')
+    m=TrainMultiRNN(file_dir, fix_shared=True)
+    #m.train()
+    m.partially_train('/home/honglei/projects/neural_network/log_dir/1_layer_150_neuron_r_2_875.ckt')
     # m.restore('test.ckt')
     # print '---'
     # m.eval()
