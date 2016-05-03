@@ -51,9 +51,18 @@ class TrainMultiRNN(object):
             tf.scalar_summary(var.name+'_max', tf.reduce_max(var))
             tf.scalar_summary(var.name+'_min', tf.reduce_min(var))
             tf.scalar_summary(var.name+'_mean', tf.reduce_mean(var))
-	    pass
+            print var.name
+
         for i in xrange(len(self._multi_rnn.loss_ops)):
             tf.scalar_summary('loss_{}'.format(i+1), self._multi_rnn.get_loss(i))
+
+    def get_value_of_variable(self, name):
+
+        var_list=[v for v in tf.all_variables() if v.name==name]
+        if len(var_list)==0:
+            return None
+        else:
+            return self._sess.run(var_list[0])
 
     def read_files(self, file_dir):
         """
@@ -118,8 +127,8 @@ class TrainMultiRNN(object):
             self._train_data_list.append(data[0:train_len,:])
             self._val_data_list.append(data[train_len:train_len + val_len, :])
             self._test_data_list.append(data[train_len + val_len:-1, :])
-	
-	print self._train_data_list[0].shape
+
+        print self._train_data_list[0].shape
 
     def partially_train(self, checkpoint_file):
 
@@ -184,7 +193,7 @@ class TrainMultiRNN(object):
             total_steps, _ = data.shape
             curr_size=(total_steps // num_steps) // batch_size
             print total_steps
-	    print num_steps
+            print num_steps
             epoch_size=max(epoch_size, curr_size)
         print epoch_size
 
