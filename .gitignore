@@ -2,3 +2,5 @@
 *.asv
 *.m~
 *.pyc
+*/.idea/
+*/.ipynb_checkpoints/

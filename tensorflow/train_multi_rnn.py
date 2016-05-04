@@ -98,6 +98,8 @@ class TrainMultiRNN(object):
 
         """
         data = np.genfromtxt(file_path, delimiter=',')
+        if len(data.shape)==1:
+            data=np.expand_dims(data, axis=1)
         _, num_ch = data.shape
         config=self.get_config(os.path.basename(file_path),num_ch)
 
@@ -317,7 +319,7 @@ if __name__ == "__main__":
 
     m=TrainMultiRNN(file_dir, fix_shared=True)
     #m.train()
-    m.partially_train('/home/honglei/projects/neural_network/log_dir/1_layer_150_neuron_r_2_875.ckt')
-    # m.restore('test.ckt')
-    # print '---'
-    # m.eval()
+    #m.partially_train('/home/honglei/projects/neural_network/log_dir/1_layer_150_neuron_r_2_875.ckt')
+    #m.restore(os.path.join(FLAGS.log_dir,'1_layer_150_neuron_r_1_889.ckt'))
+    #print '---'
+    #m.eval()

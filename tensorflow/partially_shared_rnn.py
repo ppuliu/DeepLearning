@@ -58,7 +58,7 @@ class SharedRNN(object):
             # logits = tf.matmul(output, output_w)
             # loss = tf.nn.sigmoid_cross_entropy_with_logits(tf.reshape(logits, [-1]), tf.reshape(self._targets, [-1]))
 
-            self._loss = tf.reduce_mean(batch_loss)
+            self._loss = tf.reduce_mean(batch_loss)+tf.reduce_sum(tf.abs(input_w))+tf.reduce_sum(tf.abs(output_w))
             self._final_state = state
 
             self._predicts=tf.sigmoid(logits)
@@ -77,7 +77,7 @@ class SharedRNN(object):
             #self._train_op = optimizer.minimize(self._loss, var_list=tvars)
 
             # manual clipping
-	    #optimizer = tf.train.MomentumOptimizer(config.learning_rate,0.9)
+	        #optimizer = tf.train.MomentumOptimizer(config.learning_rate,0.9)
             grads, _ = tf.clip_by_global_norm(tf.gradients(self._loss, tvars),
                                               config.max_grad_norm)
             self._train_op = optimizer.apply_gradients(zip(grads, tvars))
