@@ -1,7 +1,7 @@
 
-from partially_shared_rnn import *
+from partially_shared_fcnet import *
 
-class MultiRNN(object):
+class MultiFCNet(object):
 
     def __init__(self, configs, fix_shared=False):
 
@@ -12,16 +12,16 @@ class MultiRNN(object):
         for i in xrange(len(configs)):
             config=configs[i]
             if i==0:
-                shared_rnn=SharedRNN(config, reuse=False, fix_shared=fix_shared)
+                shared_fcnet=SharedFCNet(config, reuse=False, fix_shared=fix_shared)
             else:
-                shared_rnn = SharedRNN(config, reuse=True, fix_shared=fix_shared)
-            self._models.append(shared_rnn)
-            self._predicts.append(shared_rnn.predicts)
-            self._loss.append(shared_rnn.loss)
-            self._train_ops.append(shared_rnn.train_op)
+                shared_fcnet = SharedFCNet(config, reuse=True, fix_shared=fix_shared)
+            self._models.append(shared_fcnet)
+            self._predicts.append(shared_fcnet.predicts)
+            self._loss.append(shared_fcnet.loss)
+            self._train_ops.append(shared_fcnet.train_op)
 
         with tf.variable_scope('shared_variables') as shared_scope:
-            self._fixed_variables=tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, shared_scope.name)
+            self._fixed_variables=tf.get_collection(tf.GraphKeys.VARIABLES, shared_scope.name)
             print 'Fixed variables:', [x.name for x in self._fixed_variables]
 
     def get_input_placeholder(self, index):

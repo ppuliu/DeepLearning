@@ -3,14 +3,20 @@ import time
 import os
 import sys
 from sklearn.metrics import roc_auc_score
-from sklearn.metrics import average_precision_score
-from sklearn.metrics import fbeta_score
 
-from multi_rnn import *
+from multi_fcnet import *
 
 batch_size=1
 num_steps=100
 max_epoch=100
+
+## some hyperparameters
+hidden_sizes = [150, 150]
+share = [False, True, False]
+keep_prob = 1.0
+learning_rate = 0.01
+max_grad_norm = 5
+reg = 0.0
 
 flags = tf.flags
 flags.DEFINE_string(
@@ -18,7 +24,7 @@ flags.DEFINE_string(
 
 FLAGS = flags.FLAGS
 
-class TrainMultiRNN(object):
+class TrainMultiFCNet(object):
 
     def __init__(self, file_dir, fix_shared=False):
 
@@ -31,7 +37,7 @@ class TrainMultiRNN(object):
         # build the model
         initializer = tf.random_uniform_initializer(-1, 1)
         with tf.variable_scope("model", initializer=initializer):
-            self._multi_rnn = MultiRNN(self._configs, fix_shared)
+            self._multi_fcnet = MultiFCNet(self._configs, fix_shared)
 
         print("Starting session")
         session=tf.Session()
@@ -57,8 +63,8 @@ class TrainMultiRNN(object):
                 tf.histogram_summary(var.name, var)
             print var.name
 
-        for i in xrange(len(self._multi_rnn.loss_ops)):
-            tf.scalar_summary('loss_{}'.format(i+1), self._multi_rnn.get_loss(i))
+        for i in xrange(len(self._multi_fcnet.loss_ops)):
+            tf.scalar_summary('loss_{}'.format(i+1), self._multi_fcnet.get_loss(i))
 
     def get_value_of_variable(self, name):
 
@@ -101,7 +107,7 @@ class TrainMultiRNN(object):
             config:  rnn configuration
 
         """
-        data = np.genfromtxt(file_path, dtype=int, delimiter=',')
+        data = np.genfromtxt(file_path, delimiter=',')
         if len(data.shape)==1:
             data=np.expand_dims(data, axis=1)
         _, num_ch = data.shape
@@ -111,11 +117,19 @@ class TrainMultiRNN(object):
 
     def get_config(self, name, num_ch):
 
-        config=SharedRNNConfig()
+        config=SharedFCNetConfig()
         config.name=name
-        config.num_ch=num_ch
         config.batch_size=batch_size
         config.num_steps=num_steps
+
+        config.input_size=num_ch
+        config.output_size = num_ch
+        config.hidden_sizes = hidden_sizes
+        config.keep_prob = keep_prob
+        config.share = share
+        config.learning_rate = learning_rate
+        config.max_grad_norm = max_grad_norm
+        config.reg = reg
 
         return config
 
@@ -138,7 +152,7 @@ class TrainMultiRNN(object):
 
     def partially_train(self, checkpoint_file):
 
-        saver = tf.train.Saver(var_list=self._multi_rnn.fixed_variables)
+        saver = tf.train.Saver(var_list=self._multi_fcnet.fixed_variables)
         saver.restore(self._sess, checkpoint_file)
 
         self.train()
@@ -160,8 +174,8 @@ class TrainMultiRNN(object):
 
                 #train_roc_auc = self.run_eval(session, self._train_data_list, verbose=True)
                 #print("Epoch: %d Train ROC-AUC: %.3f" % (i + 1, train_roc_auc))
-                val_roc_auc, val_pr_auc = self.run_eval(session, self._val_data_list, verbose=True)
-                print("Epoch: %d Valid ROC-AUC: %.3f, PR-AUC: %.3f" % (i + 1, val_roc_auc, val_pr_auc))
+                val_roc_auc = self.run_eval(session, self._val_data_list, verbose=True)
+                print("Epoch: %d Valid ROC-AUC: %.3f" % (i + 1, val_roc_auc))
 
             test_roc_auc = self.run_eval(session, self._test_data_list, verbose=True)
             print("Test ROC-AUC: %.3f" % test_roc_auc)
@@ -224,10 +238,10 @@ class TrainMultiRNN(object):
                     (0, 2, 1))
 
                 # get tensorflow nodes
-                train_op=self._multi_rnn.get_train_op(data_index)
-                loss_op=self._multi_rnn.get_loss(data_index)
-                input_placeholder=self._multi_rnn.get_input_placeholder(data_index)
-                output_placeholder=self._multi_rnn.get_output_placeholder(data_index)
+                train_op=self._multi_fcnet.get_train_op(data_index)
+                loss_op=self._multi_fcnet.get_loss(data_index)
+                input_placeholder=self._multi_fcnet.get_input_placeholder(data_index)
+                output_placeholder=self._multi_fcnet.get_output_placeholder(data_index)
 
                 feed_dict={input_placeholder: x, output_placeholder: y}
                 _, curr_loss = session.run([train_op,loss_op], feed_dict)
@@ -239,8 +253,8 @@ class TrainMultiRNN(object):
                 all_data_feed.update(feed_dict)
 
             if verbose and step % (epoch_size // 10) == 0:
-                print("%.3f loss: %.3f speed: %.0f batches/sec" %
-                    (step * 1.0 / epoch_size, loss / iters,
+                print("%d loss: %.3f speed: %.0f batches/sec" %
+                    (step , loss / iters,
                      iters / (time.time() - start_time)))
 
                 # write summaries
@@ -281,9 +295,9 @@ class TrainMultiRNN(object):
                     (0, 2, 1))
 
                 # get tensorflow nodes
-                predict_op = self._multi_rnn.get_predict_op(data_index)
-                input_placeholder = self._multi_rnn.get_input_placeholder(data_index)
-                output_placeholder = self._multi_rnn.get_output_placeholder(data_index)
+                predict_op = self._multi_fcnet.get_predict_op(data_index)
+                input_placeholder = self._multi_fcnet.get_input_placeholder(data_index)
+                output_placeholder = self._multi_fcnet.get_output_placeholder(data_index)
 
                 predicts = np.squeeze(np.array(session.run([predict_op],
                                            {input_placeholder: x,
@@ -295,12 +309,7 @@ class TrainMultiRNN(object):
                 y_true= np.append(y_true, y.flatten())
                 y_predict=np.append(y_predict, predicts.flatten())
 
-        roc_auc=roc_auc_score(y_true, y_predict)
-
-        #pr_auc=average_precision_score(y_true, y_predict)
-        pr_auc=fbeta_score(y_true, y_predict>0.5, beta=1)
-
-        return roc_auc, pr_auc
+        return roc_auc_score(y_true, y_predict)
 
     def restore(self, checkpoint_file):
 
@@ -326,8 +335,8 @@ if __name__ == "__main__":
     file_dir=sys.argv[1]
     FLAGS.log_dir=sys.argv[2]
 
-    m=TrainMultiRNN(file_dir, fix_shared=True)
-    #m.train()
+    m=TrainMultiFCNet(file_dir, fix_shared=False)
+    m.train()
     #m.partially_train('/home/honglei/projects/neural_network/log_dir/1_layer_150_neuron_r_2_875.ckt')
     #m.restore(os.path.join(FLAGS.log_dir,'1_layer_150_neuron_r_1_889.ckt'))
     #print '---'

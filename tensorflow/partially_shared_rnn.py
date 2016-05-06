@@ -42,7 +42,9 @@ class SharedRNN(object):
             self._initial_state = cell.zero_state(config.batch_size, tf.float32)
 
             input_w = tf.get_variable('input_w', [config.num_ch, config.cell_size])
-            self._rnn_input = tf.reshape(tf.matmul(tf.reshape(self._inputs, (config.batch_size * config.num_steps, config.num_ch)), input_w),
+            #input_b = tf.get_variable('input_b', [config.cell_size],initializer=tf.constant_initializer(0))
+            input_b = 0
+            self._rnn_input = tf.reshape(tf.matmul(tf.reshape(self._inputs, (config.batch_size * config.num_steps, config.num_ch)), input_w)+input_b,
                                 (config.batch_size, config.num_steps, config.cell_size))
             if config.keep_prob < 1:
                 self._rnn_input = tf.nn.dropout(self._rnn_input, config.keep_prob)
@@ -51,14 +53,17 @@ class SharedRNN(object):
             self._rnn_output, state = rnn.dynamic_rnn(cell, self._rnn_input, lengths, initial_state=self._initial_state)
 
             output_w = tf.get_variable('output_w', [config.cell_size, config.num_ch])
-            logits = tf.reshape(tf.matmul(tf.reshape(self._rnn_output, (config.batch_size*config.num_steps,config.cell_size)),output_w),
+            #output_b = tf.get_variable('output_b', [config.num_ch],initializer=tf.constant_initializer(0))
+            output_b = 0
+            logits = tf.reshape(tf.matmul(tf.reshape(self._rnn_output, (config.batch_size*config.num_steps,config.cell_size)),output_w)+output_b,
                               (config.batch_size,config.num_steps,config.num_ch))
             batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits,self._outputs)
 
             # logits = tf.matmul(output, output_w)
             # loss = tf.nn.sigmoid_cross_entropy_with_logits(tf.reshape(logits, [-1]), tf.reshape(self._targets, [-1]))
 
-            self._loss = tf.reduce_mean(batch_loss)+tf.reduce_sum(tf.abs(input_w))+tf.reduce_sum(tf.abs(output_w))
+            #self._loss = tf.reduce_mean(batch_loss)+config.reg*tf.reduce_sum(tf.abs(input_w))+config.reg*tf.reduce_sum(tf.abs(output_w))
+            self._loss = tf.reduce_mean(batch_loss) + config.reg*tf.nn.l2_loss(input_w) + config.reg*tf.nn.l2_loss(output_w)
             self._final_state = state
 
             self._predicts=tf.sigmoid(logits)
@@ -71,7 +76,7 @@ class SharedRNN(object):
 
             #print tf.get_variable_scope().name
             #print [x.name for x in tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)]
-            #print [x.name for x in tvars]
+            print 'Training variables:',[x.name for x in tvars]
 
             optimizer = tf.train.RMSPropOptimizer(config.learning_rate)
             #self._train_op = optimizer.minimize(self._loss, var_list=tvars)
@@ -81,7 +86,7 @@ class SharedRNN(object):
             grads, _ = tf.clip_by_global_norm(tf.gradients(self._loss, tvars),
                                               config.max_grad_norm)
             self._train_op = optimizer.apply_gradients(zip(grads, tvars))
-		
+
     @property
     def inputs(self):
         return self._inputs
@@ -112,8 +117,8 @@ class SharedRNN(object):
 
 class SharedRNNConfig(object):
     """configurations for sharedRNN"""
-    num_layers = 1 
-    cell_size = 150 
+    num_layers = 1
+    cell_size = 150
     keep_prob = 1.0
     batch_size= 10
     num_steps = 100
@@ -121,4 +126,5 @@ class SharedRNNConfig(object):
     share=[True]
     name=None
     learning_rate=0.1
-    max_grad_norm = 5 
+    max_grad_norm = 5
+    reg=0.0
