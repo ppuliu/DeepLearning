@@ -176,6 +176,65 @@ class TrainMultiRNN(object):
                 self.close()
                 print("Results deleted.")
 
+
+    def get_eval_data(self):
+
+        session = self._sess
+
+        return self.run_predicts(session, self._val_data_list, verbose=True)
+
+    def run_predicts(self, session, data_list, verbose=False):
+
+        num_datasets = len(data_list)
+        origin_data_list=[]
+        predicted_data_list=[]
+
+        # calculate the maximum epoch_size for all the datasets
+        epoch_size = 0
+        for data in data_list:
+            total_steps, _ = data.shape
+            curr_size = (total_steps // num_steps) // batch_size
+            epoch_size = max(epoch_size, curr_size)
+            origin_data_list.append(np.array([]))
+            predicted_data_list.append(np.array([]))
+
+
+        iters = 0
+
+        for step in xrange(epoch_size):
+
+            for data_index in xrange(num_datasets):
+                data = data_list[data_index]
+                data_steps, data_num_ch = data.shape
+                start = step * num_steps * batch_size
+                end = (step + 1) * num_steps * batch_size
+                if end >= data_steps:
+                    continue
+
+                # get a batch of training data
+                x = data[start:end, :].T.reshape((batch_size, data_num_ch, num_steps), order='C').transpose((0, 2, 1))
+                y = data[start + 1:end + 1, :].T.reshape((batch_size, data_num_ch, num_steps), order='C').transpose(
+                    (0, 2, 1))
+
+                # get tensorflow nodes
+                predict_op = self._multi_rnn.get_predict_op(data_index)
+                input_placeholder = self._multi_rnn.get_input_placeholder(data_index)
+                output_placeholder = self._multi_rnn.get_output_placeholder(data_index)
+
+                predicts = np.array(session.run([predict_op],
+                                                           {input_placeholder: x,
+                                                            output_placeholder: y}))
+
+                iters += 1
+
+                origin_data_list[data_index] = np.append(origin_data_list[data_index], data[start + 1:end + 1, :],
+                                                         axis=0)
+                predicted_data_list[data_index] = np.append(predicted_data_list[data_index],
+                                                            predicts.reshape((batch_size*data_num_ch, num_steps)),axis=0)
+
+
+        return origin_data_list, predicted_data_list
+
     def eval(self):
 
         session = self._sess
