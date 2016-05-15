@@ -22,7 +22,7 @@ class MultiFCNet(object):
 
         with tf.variable_scope('shared_variables') as shared_scope:
             self._fixed_variables=tf.get_collection(tf.GraphKeys.VARIABLES, shared_scope.name)
-            print 'Fixed variables:', [x.name for x in self._fixed_variables]
+            print 'Shared variables:', [x.name for x in self._fixed_variables]
 
     def get_input_placeholder(self, index):
         return self._models[index].inputs

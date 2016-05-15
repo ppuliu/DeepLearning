@@ -22,7 +22,7 @@ class MultiRNN(object):
 
         with tf.variable_scope('shared_variables') as shared_scope:
             self._fixed_variables=tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, shared_scope.name)
-            print 'Fixed variables:', [x.name for x in self._fixed_variables]
+            print 'Shared variables:', [x.name for x in self._fixed_variables]
 
     def get_input_placeholder(self, index):
         return self._models[index].inputs

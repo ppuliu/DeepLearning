@@ -11,7 +11,7 @@ num_steps=100
 max_epoch=100
 
 ## some hyperparameters
-hidden_sizes = [150, 150]
+hidden_sizes = [256,256]
 share = [False, True, False]
 keep_prob = 1.0
 learning_rate = 0.01
@@ -167,13 +167,17 @@ class TrainMultiFCNet(object):
         """
         try:
             session=self._sess
-
+            auc_histroy = [0]
             for i in range(max_epoch):
                 train_perplexity=self.run_epoch_training(session,self._train_data_list,i,verbose=True)
                 print("Epoch: %d Train Loss: %.3f" % (i + 1, train_perplexity))
 
-                #train_roc_auc = self.run_eval(session, self._train_data_list, verbose=True)
-                #print("Epoch: %d Train ROC-AUC: %.3f" % (i + 1, train_roc_auc))
+                roc_auc = self.run_eval(session, self._train_data_list, verbose=True)
+                print("Epoch: %d Train ROC-AUC: %.3f" % (i + 1, roc_auc))
+                if roc_auc>=max(auc_histroy):
+                    self.save(os.path.join(FLAGS.log_dir,'best.ckt'))
+                auc_histroy.append(roc_auc)
+
                 val_roc_auc = self.run_eval(session, self._val_data_list, verbose=True)
                 print("Epoch: %d Valid ROC-AUC: %.3f" % (i + 1, val_roc_auc))
 
@@ -253,8 +257,8 @@ class TrainMultiFCNet(object):
                 all_data_feed.update(feed_dict)
 
             if verbose and step % (epoch_size // 10) == 0:
-                print("%d loss: %.3f speed: %.0f batches/sec" %
-                    (step , loss / iters,
+                print("%d/%d loss: %.3f speed: %.0f batches/sec" %
+                    (step, epoch_size, loss / iters,
                      iters / (time.time() - start_time)))
 
                 # write summaries
@@ -330,6 +334,7 @@ class TrainMultiFCNet(object):
     def close(self):
         self._summary_writer.close()
         self._sess.close()
+
 
 if __name__ == "__main__":
     file_dir=sys.argv[1]

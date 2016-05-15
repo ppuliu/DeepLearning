@@ -25,18 +25,19 @@ class SharedFCNet(object):
             self._inputs = tf.placeholder(tf.float32, [config.batch_size, config.num_steps, config.input_size])
             self._outputs = tf.placeholder(tf.float32, [config.batch_size, config.num_steps, config.output_size])
 
-            sizes=config.hidden_sizes
+            sizes=list(config.hidden_sizes)
             sizes.insert(0,config.input_size)
-            sizes.append(config.output_size)
+            #sizes.append(config.output_size)
             h=None
+            #input_w=None
             for i in xrange(len(sizes)-1):
                 # decide whether to share the variables or not based on share list
                 if config.share[i]:
                     with tf.variable_scope(shared_scope, reuse=reuse):
                         with tf.variable_scope('Layer{}'.format(i+1)):
                             w=tf.get_variable('weights',shape=[sizes[i],sizes[i+1]],trainable=(not fix_shared))
-                            #b=tf.get_variable('bias',shape=[sizes[i+1]],trainable=(not fix_shared),initializer=tf.constant_initializer(0))
-                            b=0
+                            b=tf.get_variable('bias',shape=[sizes[i+1]],trainable=(not fix_shared),initializer=tf.constant_initializer(0))
+                            #b=0
                 else:
                     with tf.variable_scope('Layer{}'.format(i + 1)):
                         w = tf.get_variable('weights', shape=[sizes[i], sizes[i + 1]], trainable=(not fix_shared))
@@ -45,6 +46,7 @@ class SharedFCNet(object):
                 # input layer
                 if i==0:
                     h = tf.nn.tanh(tf.matmul(tf.reshape(self._inputs, (config.batch_size * config.num_steps, config.input_size)), w)+b)
+                    #input_w=w
                 # output layer
                 elif i==len(sizes)-2:
                     h = tf.nn.sigmoid(tf.matmul(h, w)+b)
@@ -54,7 +56,8 @@ class SharedFCNet(object):
 
                 if config.keep_prob < 1:
                     h = tf.nn.dropout(h, config.keep_prob)
-
+            #output_w=tf.transpose(input_w)
+            #h = tf.nn.sigmoid(tf.matmul(h, output_w))
             logits = tf.reshape(h, (config.batch_size,config.num_steps,config.output_size))
             batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits,self._outputs)
 

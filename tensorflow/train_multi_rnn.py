@@ -29,7 +29,7 @@ class TrainMultiRNN(object):
 
         print("Building model")
         # build the model
-        initializer = tf.random_uniform_initializer(-1, 1)
+        initializer = tf.random_uniform_initializer(-0.1, 0.1)
         with tf.variable_scope("model", initializer=initializer):
             self._multi_rnn = MultiRNN(self._configs, fix_shared)
 
@@ -153,27 +153,31 @@ class TrainMultiRNN(object):
         """
         try:
             session=self._sess
-
+            auc_histroy=[0]
             for i in range(max_epoch):
-                train_perplexity=self.run_epoch_training(session,self._train_data_list,i,verbose=True)
-                print("Epoch: %d Train Loss: %.3f" % (i + 1, train_perplexity))
+                train_loss=self.run_epoch_training(session,self._train_data_list,i,verbose=True)
+                print("Epoch: %d Train Loss: %.3f" % (i + 1, train_loss))
 
-                #train_roc_auc = self.run_eval(session, self._train_data_list, verbose=True)
-                #print("Epoch: %d Train ROC-AUC: %.3f" % (i + 1, train_roc_auc))
-                val_roc_auc, val_pr_auc = self.run_eval(session, self._val_data_list, verbose=True)
-                print("Epoch: %d Valid ROC-AUC: %.3f, PR-AUC: %.3f" % (i + 1, val_roc_auc, val_pr_auc))
+                roc_auc, pr_auc = self.run_eval(session, self._train_data_list, verbose=True)
+                print("Epoch: %d Train ROC-AUC: %.3f, PR-AUC: %.3f" % (i + 1, roc_auc, pr_auc))
+                if roc_auc>=max(auc_histroy):
+                    self.save(os.path.join(FLAGS.log_dir,'best.ckt'))
+                auc_histroy.append(roc_auc)
+                roc_auc, pr_auc = self.run_eval(session, self._val_data_list, verbose=True)
+                print("Epoch: %d Valid ROC-AUC: %.3f, PR-AUC: %.3f" % (i + 1, roc_auc, pr_auc))
 
-            test_roc_auc = self.run_eval(session, self._test_data_list, verbose=True)
-            print("Test ROC-AUC: %.3f" % test_roc_auc)
+
+            roc_auc, pr_auc = self.run_eval(session, self._test_data_list, verbose=True)
+            print("Test ROC-AUC: %.3f, PR-AUC: %.3f" % (roc_auc, pr_auc))
 
         except KeyboardInterrupt:
             print("WARNING: User interrupted program.")
 
             finalizeAndSave = raw_input("Do you want to save the latest data? [y/n]")
             if finalizeAndSave != 'n':
-                self.close_and_save()
+                save_path = raw_input("Save results to: ")
+                self.save(save_path)
             else:
-                self.close()
                 print("Results deleted.")
 
 
@@ -182,6 +186,12 @@ class TrainMultiRNN(object):
         session = self._sess
 
         return self.run_predicts(session, self._val_data_list, verbose=True)
+
+    def get_train_data(self):
+
+        session = self._sess
+
+        return self.run_predicts(session, self._train_data_list, verbose=True)
 
     def run_predicts(self, session, data_list, verbose=False):
 
@@ -192,11 +202,11 @@ class TrainMultiRNN(object):
         # calculate the maximum epoch_size for all the datasets
         epoch_size = 0
         for data in data_list:
-            total_steps, _ = data.shape
+            total_steps, data_num_ch = data.shape
             curr_size = (total_steps // num_steps) // batch_size
             epoch_size = max(epoch_size, curr_size)
-            origin_data_list.append(np.array([]))
-            predicted_data_list.append(np.array([]))
+            origin_data_list.append(np.array([]).reshape(0,data_num_ch))
+            predicted_data_list.append(np.array([]).reshape(0,data_num_ch))
 
 
         iters = 0
@@ -230,7 +240,7 @@ class TrainMultiRNN(object):
                 origin_data_list[data_index] = np.append(origin_data_list[data_index], data[start + 1:end + 1, :],
                                                          axis=0)
                 predicted_data_list[data_index] = np.append(predicted_data_list[data_index],
-                                                            predicts.reshape((batch_size*data_num_ch, num_steps)),axis=0)
+                                                            predicts.reshape(batch_size*num_steps, data_num_ch),axis=0)
 
 
         return origin_data_list, predicted_data_list
@@ -239,13 +249,14 @@ class TrainMultiRNN(object):
 
         session = self._sess
 
-        train_roc_auc = self.run_eval(session, self._train_data_list, verbose=True)
-        print("Train ROC-AUC: %.3f" % (train_roc_auc))
-        val_roc_auc = self.run_eval(session, self._val_data_list, verbose=True)
-        print("Valid ROC-AUC: %.3f" % (val_roc_auc))
+        roc_auc, pr_auc = self.run_eval(session, self._train_data_list, verbose=True)
+        print("Train ROC-AUC: %.3f, PR-AUC: %.3f" % (roc_auc, pr_auc))
 
-        test_roc_auc = self.run_eval(session, self._test_data_list, verbose=True)
-        print("Test ROC-AUC: %.3f" % test_roc_auc)
+        roc_auc, pr_auc = self.run_eval(session, self._val_data_list, verbose=True)
+        print("Valid ROC-AUC: %.3f, PR-AUC: %.3f" % (roc_auc, pr_auc))
+
+        roc_auc, pr_auc = self.run_eval(session, self._test_data_list, verbose=True)
+        print("Test ROC-AUC: %.3f, PR-AUC: %.3f" % (roc_auc, pr_auc))
 
 
     def run_epoch_training(self, session, data_list, num_epoch, verbose=False):
@@ -298,8 +309,8 @@ class TrainMultiRNN(object):
                 all_data_feed.update(feed_dict)
 
             if verbose and step % (epoch_size // 10) == 0:
-                print("%.3f loss: %.3f speed: %.0f batches/sec" %
-                    (step * 1.0 / epoch_size, loss / iters,
+                print("%d/%d loss: %.3f speed: %.0f batches/sec" %
+                    (step, epoch_size, loss / iters,
                      iters / (time.time() - start_time)))
 
                 # write summaries
@@ -356,8 +367,8 @@ class TrainMultiRNN(object):
 
         roc_auc=roc_auc_score(y_true, y_predict)
 
-        #pr_auc=average_precision_score(y_true, y_predict)
-        pr_auc=fbeta_score(y_true, y_predict>0.5, beta=1)
+        pr_auc=average_precision_score(y_true, y_predict)
+        #pr_auc=fbeta_score(y_true, y_predict>0.5, beta=1)
 
         return roc_auc, pr_auc
 
@@ -367,12 +378,12 @@ class TrainMultiRNN(object):
         saver.restore(self._sess, checkpoint_file)
 
     def save(self, path):
+        print("Saving latest results.")
         saver = tf.train.Saver()
         saver.save(self._sess, path)
 
     def close_and_save(self):
         save_path = raw_input("Save results to: ")
-        print("Saving latest results.")
         self.save(os.path.join(FLAGS.log_dir, save_path))
         self._summary_writer.close()
         self._sess.close()

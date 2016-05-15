@@ -52,7 +52,8 @@ class SharedRNN(object):
             lengths=tf.fill([config.batch_size],config.num_steps)
             self._rnn_output, state = rnn.dynamic_rnn(cell, self._rnn_input, lengths, initial_state=self._initial_state)
 
-            output_w = tf.get_variable('output_w', [config.cell_size, config.num_ch])
+            #output_w = tf.get_variable('output_w', [config.cell_size, config.num_ch])
+            output_w=tf.transpose(input_w)
             #output_b = tf.get_variable('output_b', [config.num_ch],initializer=tf.constant_initializer(0))
             output_b = 0
             logits = tf.reshape(tf.matmul(tf.reshape(self._rnn_output, (config.batch_size*config.num_steps,config.cell_size)),output_w)+output_b,
@@ -83,6 +84,7 @@ class SharedRNN(object):
 
             # manual clipping
 	        #optimizer = tf.train.MomentumOptimizer(config.learning_rate,0.9)
+            #optimizer = tf.train.GradientDescentOptimizer(config.learning_rate)
             grads, _ = tf.clip_by_global_norm(tf.gradients(self._loss, tvars),
                                               config.max_grad_norm)
             self._train_op = optimizer.apply_gradients(zip(grads, tvars))
@@ -118,7 +120,7 @@ class SharedRNN(object):
 class SharedRNNConfig(object):
     """configurations for sharedRNN"""
     num_layers = 1
-    cell_size = 150
+    cell_size = 256
     keep_prob = 1.0
     batch_size= 10
     num_steps = 100
