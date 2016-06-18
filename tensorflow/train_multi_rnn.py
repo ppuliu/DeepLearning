@@ -82,9 +82,21 @@ class TrainMultiRNN(object):
             raise ValueError("input direcotry doesn't exist!")
         data_list=[]
         configs=[]
-        for file_name in os.listdir(file_dir):
+        file_list=os.listdir(file_dir)
+
+        labels={}
+        if 'labels.txt' in file_list:
+            file_list.remove('labels.txt')
+            with open(os.path.join(file_dir,'labels.txt')) as f:
+                for line in f:
+                    entries=line.split('\t')
+                    labels[entries[0].strip()]=int(entries[1])
+        for file_name in file_list:
             file_path=os.path.join(file_dir,file_name)
             data, config=self.read_data(file_path)
+            if file_name in labels:
+                config.recording_label=labels[file_name]
+                config.num_classes=labels['num_classes']
             data_list.append(data)
             configs.append(config)
 

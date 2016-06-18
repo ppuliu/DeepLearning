@@ -13,11 +13,11 @@ def read_spike_train(file_name):
                 max_time=entries[-1]
             spike_times.append(entries)
     n=len(spike_times)
-    spike_train=np.zeros([n, max_time+1])
+    spike_train=np.zeros([max_time+1,n])
 
     for i in xrange(n):
         for j in spike_times[i]:
-            spike_train[i,j]=1
+            spike_train[j,i]=1
 
     return spike_train
 

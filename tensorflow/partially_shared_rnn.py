@@ -58,7 +58,9 @@ class SharedRNN(object):
             output_b = 0
             logits = tf.reshape(tf.matmul(tf.reshape(self._rnn_output, (config.batch_size*config.num_steps,config.cell_size)),output_w)+output_b,
                               (config.batch_size,config.num_steps,config.num_ch))
-            batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits,self._outputs)
+            # batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits,self._outputs)  # when only unsupervised training is used
+            batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(tf.slice(logits,[0,0,0],[-1, config.num_steps-1, -1]),
+                                                                 tf.slice(self._outputs,[0,0,0],[-1, config.num_steps-1, -1]))     # when supervised training is used, there is an end vector
 
             # logits = tf.matmul(output, output_w)
             # loss = tf.nn.sigmoid_cross_entropy_with_logits(tf.reshape(logits, [-1]), tf.reshape(self._targets, [-1]))
@@ -68,6 +70,17 @@ class SharedRNN(object):
             self._final_state = state
 
             self._predicts=tf.sigmoid(logits)
+
+            ## when using supervised training, add softmax loss
+            if config.recording_label!=-1:
+                with tf.variable_scope(shared_scope, reuse=reuse):
+                    softmax_w = tf.get_variable('softmax_w', [config.cell_size,config.num_classes])
+                r_labels = tf.fill([config.batch_size], config.recording_label)
+                softmax_logits=tf.matmul(self._final_state, softmax_w)
+                softmax_loss=tf.nn.sparse_softmax_cross_entropy_with_logits(softmax_logits, r_labels)
+                self._sup_loss=self._loss+tf.reduce_mean(softmax_loss)
+
+                self._label_predicts=tf.nn.softmax(softmax_logits)
 
             # decide which variables to train
             if fix_shared:
@@ -88,6 +101,13 @@ class SharedRNN(object):
             grads, _ = tf.clip_by_global_norm(tf.gradients(self._loss, tvars),
                                               config.max_grad_norm)
             self._train_op = optimizer.apply_gradients(zip(grads, tvars))
+
+            ## when using supervised training, add supervised training op
+            if config.recording_label != -1:
+                sup_grads, _ = tf.clip_by_global_norm(tf.gradients(self._sup_loss, tvars),
+                                                  config.max_grad_norm)
+
+                self._sup_train_op = optimizer.apply_gradients(zip(sup_grads, tvars))
 
     @property
     def inputs(self):
@@ -117,6 +137,10 @@ class SharedRNN(object):
     def train_op(self):
         return self._train_op
 
+    @property
+    def sup_train_op(self):
+        return self._sup_train_op
+
 class SharedRNNConfig(object):
     """configurations for sharedRNN"""
     num_layers = 1
@@ -130,3 +154,5 @@ class SharedRNNConfig(object):
     learning_rate=0.1
     max_grad_norm = 5
     reg=0.0
+    num_classes=3
+    recording_label=-1

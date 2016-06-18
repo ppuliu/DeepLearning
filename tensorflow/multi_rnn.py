@@ -5,6 +5,7 @@ class MultiRNN(object):
 
     def __init__(self, configs, fix_shared=False):
 
+        self._sup_train_ops = []
         self._train_ops=[]
         self._predicts=[]
         self._models=[]
@@ -19,6 +20,8 @@ class MultiRNN(object):
             self._predicts.append(shared_rnn.predicts)
             self._loss.append(shared_rnn.loss)
             self._train_ops.append(shared_rnn.train_op)
+            if config.recording_label != -1:
+                self._sup_train_ops.append(shared_rnn.sup_train_op)
 
         with tf.variable_scope('shared_variables') as shared_scope:
             self._fixed_variables=tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, shared_scope.name)
@@ -58,5 +61,9 @@ class MultiRNN(object):
     @property
     def loss_ops(self):
         return self._loss
+
+    @property
+    def sup_train_ops(self):
+        return self._sup_train_ops
 
 
