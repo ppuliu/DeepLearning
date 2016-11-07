@@ -210,8 +210,8 @@ class BasicLSTMCell(RNNCell):
     #print(type(scope))
     """Long short-term memory cell (LSTM)."""
     with vs.variable_scope(scope or type(self).__name__, reuse):  # "BasicLSTMCell"
-      print(vs.get_variable_scope().reuse)
-      print(vs.get_variable_scope().name)
+      #print(vs.get_variable_scope().reuse)
+      #print(vs.get_variable_scope().name)
 
       # Parameters of gates are concatenated into one multiply for efficiency.
       c, h = array_ops.split(1, 2, state)

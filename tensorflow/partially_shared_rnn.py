@@ -9,6 +9,7 @@ Create RNN model with partially shared variables
 import tensorflow as tf
 import rnn
 import rnn_cell
+import numpy as np
 
 
 class SharedRNN(object):
@@ -41,10 +42,12 @@ class SharedRNN(object):
 
             self._initial_state = cell.zero_state(config.batch_size, tf.float32)
 
-            input_w = tf.get_variable('input_w', [config.num_ch, config.cell_size])
+            input_w = tf.get_variable('input_w', [config.num_ch, config.cell_size], initializer = orthogonal_initializer()) # use orthogonal initializer
             #input_b = tf.get_variable('input_b', [config.cell_size],initializer=tf.constant_initializer(0))
             input_b = 0
-            self._rnn_input = tf.reshape(tf.matmul(tf.reshape(self._inputs, (config.batch_size * config.num_steps, config.num_ch)), input_w)+input_b,
+            rec_bias = tf.get_variable('rec_bias',[],initializer=tf.constant_initializer(0))
+            #rec_bias=0
+            self._rnn_input = tf.reshape(tf.matmul(tf.reshape(self._inputs, (config.batch_size * config.num_steps, config.num_ch)), input_w)+input_b+rec_bias,
                                 (config.batch_size, config.num_steps, config.cell_size))
             if config.keep_prob < 1:
                 self._rnn_input = tf.nn.dropout(self._rnn_input, config.keep_prob)
@@ -56,11 +59,10 @@ class SharedRNN(object):
             output_w=tf.transpose(input_w)
             #output_b = tf.get_variable('output_b', [config.num_ch],initializer=tf.constant_initializer(0))
             output_b = 0
-            logits = tf.reshape(tf.matmul(tf.reshape(self._rnn_output, (config.batch_size*config.num_steps,config.cell_size)),output_w)+output_b,
+            logits = tf.reshape(tf.matmul(tf.reshape(self._rnn_output-rec_bias, (config.batch_size*config.num_steps,config.cell_size)),output_w)+output_b,
                               (config.batch_size,config.num_steps,config.num_ch))
-            # batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits,self._outputs)  # when only unsupervised training is used
-            batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(tf.slice(logits,[0,0,0],[-1, config.num_steps-1, -1]),
-                                                                 tf.slice(self._outputs,[0,0,0],[-1, config.num_steps-1, -1]))     # when supervised training is used, there is an end vector
+            # batch_loss = tf.nn.weighted_cross_entropy_with_logits(logits,self._outputs,config.pos_weight)  # when only unsupervised training is used
+            batch_loss = tf.nn.weighted_cross_entropy_with_logits(tf.slice(logits,[0,0,0],[-1, config.num_steps-1, -1]), tf.slice(self._outputs,[0,0,0],[-1, config.num_steps-1, -1]),config.pos_weight)     # when supervised training is used, there is an end vector
 
             # logits = tf.matmul(output, output_w)
             # loss = tf.nn.sigmoid_cross_entropy_with_logits(tf.reshape(logits, [-1]), tf.reshape(self._targets, [-1]))
@@ -72,31 +74,33 @@ class SharedRNN(object):
             self._predicts=tf.sigmoid(logits)
 
             ## when using supervised training, add softmax loss
-            if config.recording_label!=-1:
-                with tf.variable_scope(shared_scope, reuse=reuse):
-                    softmax_w = tf.get_variable('softmax_w', [config.cell_size,config.num_classes])
-                r_labels = tf.fill([config.batch_size], config.recording_label)
-                softmax_logits=tf.matmul(self._final_state, softmax_w)
-                softmax_loss=tf.nn.sparse_softmax_cross_entropy_with_logits(softmax_logits, r_labels)
-                self._sup_loss=self._loss+tf.reduce_mean(softmax_loss)
+            with tf.variable_scope(shared_scope, reuse=reuse):
+                softmax_w = tf.get_variable('softmax_w', [2*config.cell_size,config.num_classes])
 
-                self._label_predicts=tf.nn.softmax(softmax_logits)
+            softmax_logits=tf.matmul(self._final_state, softmax_w)
+            self._label_predicts=tf.nn.softmax(softmax_logits)
+            if config.recording_label!=-1:
+                r_labels = tf.fill([config.batch_size], config.recording_label)
+                softmax_loss=tf.nn.sparse_softmax_cross_entropy_with_logits(softmax_logits, r_labels)
+                self._sup_loss=self._loss+tf.reduce_mean(softmax_loss) + config.reg*tf.nn.l2_loss(softmax_w)
 
             # decide which variables to train
             if fix_shared:
                 tvars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, tf.get_variable_scope().name)
+                #tvars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, shared_scope.name)
             else:
                 tvars = tf.trainable_variables()
 
             #print tf.get_variable_scope().name
             #print [x.name for x in tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)]
-            print 'Training variables:',[x.name for x in tvars]
+            print 'Training variables:'
+            print '\n'.join([x.name for x in tvars])
 
             optimizer = tf.train.RMSPropOptimizer(config.learning_rate)
             #self._train_op = optimizer.minimize(self._loss, var_list=tvars)
 
             # manual clipping
-	        #optimizer = tf.train.MomentumOptimizer(config.learning_rate,0.9)
+            #optimizer = tf.train.MomentumOptimizer(config.learning_rate,0.9)
             #optimizer = tf.train.GradientDescentOptimizer(config.learning_rate)
             grads, _ = tf.clip_by_global_norm(tf.gradients(self._loss, tvars),
                                               config.max_grad_norm)
@@ -126,12 +130,20 @@ class SharedRNN(object):
         return self._loss
 
     @property
+    def sup_loss(self):
+        return self._sup_loss
+    
+    @property
     def final_state(self):
         return self._final_state
 
     @property
     def predicts(self):
         return self._predicts
+ 
+    @property
+    def label_predicts(self):
+        return self._label_predicts
 
     @property
     def train_op(self):
@@ -140,19 +152,37 @@ class SharedRNN(object):
     @property
     def sup_train_op(self):
         return self._sup_train_op
+    
+def orthogonal_initializer(scale=1.0):
+    # From Lasagne and Keras. Reference: Saxe et al., http://arxiv.org/abs/1312.6120
+    def _initializer(shape, dtype=tf.float32):
+        flat_shape = (shape[0], np.prod(shape[1:]))
+        a = np.random.normal(0.0, 1.0, flat_shape)
+        u, _, v = np.linalg.svd(a, full_matrices=False)
+        # pick the one with the correct shape
+        q = u if u.shape == flat_shape else v
+        q = q.reshape(shape)  # this needs to be corrected to float32
+        print('you have initialized one orthogonal matrix.')
+        return tf.constant(scale * q[:shape[0], :shape[1]], dtype=dtype)
+    return _initializer
 
 class SharedRNNConfig(object):
     """configurations for sharedRNN"""
     num_layers = 1
-    cell_size = 256
-    keep_prob = 1.0
+    share=[True]
+    cell_size = 8
+    
     batch_size= 10
     num_steps = 100
     num_ch = 10
-    share=[True]
     name=None
-    learning_rate=0.1
-    max_grad_norm = 5
-    reg=0.0
     num_classes=3
     recording_label=-1
+    
+    keep_prob = 1.0
+    reg=0.01
+    pos_weight = 100 # positive weight for weighted loss function
+    max_grad_norm = 2
+    learning_rate=2.0
+
+
