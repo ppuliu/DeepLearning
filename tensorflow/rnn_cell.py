@@ -104,9 +104,11 @@ class RNNCell(object):
 class BasicRNNCell(RNNCell):
   """The most basic RNN cell."""
 
-  def __init__(self, num_units, input_size=None):
+  def __init__(self, num_units, input_size=None, scope=None):
     self._num_units = num_units
     self._input_size = num_units if input_size is None else input_size
+    ## added by Honglei
+    self._scope = scope
 
   @property
   def input_size(self):
@@ -121,8 +123,16 @@ class BasicRNNCell(RNNCell):
     return self._num_units
 
   def __call__(self, inputs, state, scope=None):
+    
+    ## added by Honglei    
+    reuse=False
+    if self._scope:
+      scope = self._scope
+      reuse = scope.reuse    
+    ##
+    
     """Most basic RNN: output = new_state = tanh(W * input + U * state + B)."""
-    with vs.variable_scope(scope or type(self).__name__):  # "BasicRNNCell"
+    with vs.variable_scope(scope or type(self).__name__, reuse = reuse):  # "BasicRNNCell"
       output = tanh(linear([inputs, state], self._num_units, True))
     return output, output
 
@@ -209,7 +219,7 @@ class BasicLSTMCell(RNNCell):
 
     #print(type(scope))
     """Long short-term memory cell (LSTM)."""
-    with vs.variable_scope(scope or type(self).__name__, reuse):  # "BasicLSTMCell"
+    with vs.variable_scope(scope or type(self).__name__, reuse = reuse):  # "BasicLSTMCell"
       #print(vs.get_variable_scope().reuse)
       #print(vs.get_variable_scope().name)
 
@@ -280,7 +290,7 @@ class LSTMCell(RNNCell):
   def __init__(self, num_units, input_size=None,
                use_peepholes=False, cell_clip=None,
                initializer=None, num_proj=None,
-               num_unit_shards=1, num_proj_shards=1, forget_bias=1.0):
+               num_unit_shards=1, num_proj_shards=1, forget_bias=1.0, scope=None):
     """Initialize the parameters for an LSTM cell.
 
     Args:
@@ -309,6 +319,8 @@ class LSTMCell(RNNCell):
     self._num_unit_shards = num_unit_shards
     self._num_proj_shards = num_proj_shards
     self._forget_bias = forget_bias
+    # added by Honglei
+    self._scope = scope
 
     if num_proj:
       self._state_size = num_units + num_proj
@@ -350,6 +362,12 @@ class LSTMCell(RNNCell):
       ValueError: if an input_size was specified and the provided inputs have
         a different dimension.
     """
+    # added by Honglei
+    reuse=False
+    if self._scope:
+      scope = self._scope
+      reuse = scope.reuse
+    
     num_proj = self._num_units if self._num_proj is None else self._num_proj
 
     c_prev = array_ops.slice(state, [0, 0], [-1, self._num_units])
@@ -361,7 +379,7 @@ class LSTMCell(RNNCell):
       raise ValueError("Actual input size not same as specified: %d vs %d." %
                        (actual_input_size, self._input_size))
     with vs.variable_scope(scope or type(self).__name__,
-                           initializer=self._initializer):  # "LSTMCell"
+                           initializer=self._initializer, reuse = reuse):  # "LSTMCell"
       concat_w = _get_concat_variable(
           "W", [actual_input_size + num_proj, 4 * self._num_units],
           dtype, self._num_unit_shards)

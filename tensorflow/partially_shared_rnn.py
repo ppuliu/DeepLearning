@@ -29,9 +29,9 @@ class SharedRNN(object):
                 if config.share[i]:
                     with tf.variable_scope(shared_scope, reuse=reuse):
                         with tf.variable_scope('Cell{}'.format(i)) as cell_sope:
-                            lstm_cell = rnn_cell.BasicLSTMCell(config.cell_size, forget_bias=0.0, scope=cell_sope)
+                            lstm_cell = rnn_cell.LSTMCell(config.cell_size, scope=cell_sope)
                 else:
-                    lstm_cell = rnn_cell.BasicLSTMCell(config.cell_size, forget_bias=0.0)
+                    lstm_cell = rnn_cell.LSTMCell(config.cell_size)
 
                 if config.keep_prob < 1:
                     lstm_cell = rnn_cell.DropoutWrapper(
@@ -68,7 +68,11 @@ class SharedRNN(object):
             # loss = tf.nn.sigmoid_cross_entropy_with_logits(tf.reshape(logits, [-1]), tf.reshape(self._targets, [-1]))
 
             #self._loss = tf.reduce_mean(batch_loss)+config.reg*tf.reduce_sum(tf.abs(input_w))+config.reg*tf.reduce_sum(tf.abs(output_w))
-            self._loss = tf.reduce_mean(batch_loss) + config.reg*tf.nn.l2_loss(input_w) + config.reg*tf.nn.l2_loss(output_w)
+            # identity loss
+            # identity_loss = tf.reduce_mean(tf.abs(tf.matmul(input_w, output_w) - tf.constant(np.identity(config.num_ch), dtype = tf.float32)))
+            identity_loss = tf.nn.l2_loss(tf.matmul(input_w, output_w) - tf.constant(np.identity(config.num_ch), dtype = tf.float32))
+            # self._loss = tf.reduce_mean(batch_loss) + config.reg*tf.nn.l2_loss(input_w) + config.reg*tf.nn.l2_loss(output_w) + config.reg * identity_loss
+            self._loss = tf.reduce_mean(batch_loss) + config.reg * identity_loss
             self._final_state = state
 
             self._predicts=tf.sigmoid(logits)

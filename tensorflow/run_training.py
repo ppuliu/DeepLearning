@@ -10,12 +10,12 @@ train_multi_rnn.multiplier=1
 train_multi_rnn.end_symbol = -1
 
 train_multi_rnn.keep_prob = 1.0
-train_multi_rnn.pos_weight = 1000
+train_multi_rnn.pos_weight = 10 
 train_multi_rnn.max_grad_norm = 5
 
 train_multi_rnn.batch_size=1
-train_multi_rnn.num_steps=100
-train_multi_rnn.max_epoch=10
+train_multi_rnn.num_steps=1000
+train_multi_rnn.max_epoch=100
 train_multi_rnn.reg=0.1
 train_multi_rnn.learning_rate=2.0
 train_multi_rnn.cell_size = 128

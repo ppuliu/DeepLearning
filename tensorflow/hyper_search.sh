@@ -1,8 +1,8 @@
-REGS="0.1 0.01"
-RATES="0.5"
-CELL_SIZES="128 256"
+REGS="0.0 0.1 0.01 0.001 0.0001 0.00001"
+RATES="0.001 0.0001"
+CELL_SIZES="64 128 256 512"
 
-i=20
+i=0
 
 for reg in $REGS
 do
@@ -11,7 +11,8 @@ do
                 for size in $CELL_SIZES
                 do
                         echo "====================" $i
-                        bash run_training.sh $reg $rate $size $i > ../../../log_dir/log_$i.txt
+                        # bash run_training.sh $reg $rate $size $i > ../../../log_dir/log_$i.txt
+                        python run_training.py 3 ../../../data/small $reg $rate $size $i > ../../../log_dir/log_$i.txt
                         i=$(($i + 1))
                 done
         done

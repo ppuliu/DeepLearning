@@ -195,6 +195,7 @@ class TrainMultiRNN(object):
             auc_histroy=[0]
             for i in range(max_epoch):
                 train_loss=self.run_epoch_training(session,self._train_data_list,i,verbose=True)
+                print ''
                 print("Epoch: %d Train Loss: %.3f" % (i + 1, train_loss))
 
                 roc_auc, pr_auc = self.run_eval(session, self._train_data_list, verbose=True)
@@ -419,6 +420,7 @@ class TrainMultiRNN(object):
             loss_histroy=[sys.float_info.max]
             for i in range(max_epoch):
                 train_loss, train_sup_loss=self.run_epoch_sup_training(session,self._train_data_list,i,verbose=True)
+                print ''
                 print("Epoch: %d: Train unsupervised loss: %.3f, supervised loss: %.3f" % (i + 1, train_loss, train_sup_loss))
                 if train_sup_loss<=min(loss_histroy):
                     self.save(os.path.join(FLAGS.log_dir, checkpoint_file))
