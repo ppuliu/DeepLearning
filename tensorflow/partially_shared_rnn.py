@@ -28,8 +28,8 @@ class SharedRNN(object):
                 # decide whether to share the variables or not based on share list
                 if config.share[i]:
                     with tf.variable_scope(shared_scope, reuse=reuse):
-                        with tf.variable_scope('Cell{}'.format(i)) as cell_sope:
-                            lstm_cell = rnn_cell.LSTMCell(config.cell_size, scope=cell_sope)
+                        with tf.variable_scope('Cell{}'.format(i)) as cell_scope:
+                            lstm_cell = rnn_cell.LSTMCell(config.cell_size, scope=cell_scope)
                 else:
                     lstm_cell = rnn_cell.LSTMCell(config.cell_size)
 
@@ -73,13 +73,13 @@ class SharedRNN(object):
             identity_loss = tf.nn.l2_loss(tf.matmul(input_w, output_w) - tf.constant(np.identity(config.num_ch), dtype = tf.float32))
             # self._loss = tf.reduce_mean(batch_loss) + config.reg*tf.nn.l2_loss(input_w) + config.reg*tf.nn.l2_loss(output_w) + config.reg * identity_loss
             self._loss = tf.reduce_mean(batch_loss) + config.reg * identity_loss
-            self._final_state = state
+            self._final_state = state[0].h
 
             self._predicts=tf.sigmoid(logits)
 
             ## when using supervised training, add softmax loss
             with tf.variable_scope(shared_scope, reuse=reuse):
-                softmax_w = tf.get_variable('softmax_w', [2*config.cell_size,config.num_classes])
+                softmax_w = tf.get_variable('softmax_w', [config.cell_size,config.num_classes])
 
             softmax_logits=tf.matmul(self._final_state, softmax_w)
             self._label_predicts=tf.nn.softmax(softmax_logits)
@@ -159,7 +159,7 @@ class SharedRNN(object):
     
 def orthogonal_initializer(scale=1.0):
     # From Lasagne and Keras. Reference: Saxe et al., http://arxiv.org/abs/1312.6120
-    def _initializer(shape, dtype=tf.float32):
+    def _initializer(shape, dtype=tf.float32, partition_info=None):
         flat_shape = (shape[0], np.prod(shape[1:]))
         a = np.random.normal(0.0, 1.0, flat_shape)
         u, _, v = np.linalg.svd(a, full_matrices=False)
