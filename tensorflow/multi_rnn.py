@@ -10,6 +10,7 @@ class MultiRNN(object):
         self._models=[]
         self._loss=[]
         self._final_state=[]
+        self._mean_state=[]
         
         self._label_predicts=[]
         self._sup_loss=[]
@@ -26,7 +27,8 @@ class MultiRNN(object):
             self._loss.append(shared_rnn.loss)
             self._train_ops.append(shared_rnn.train_op)
             self._final_state.append(shared_rnn.final_state)
-            
+            self._mean_state.append(shared_rnn._mean_state)
+
             # supervised learning
             self._label_predicts.append(shared_rnn.label_predicts)
             self._sup_loss.append(shared_rnn.sup_loss)
@@ -56,6 +58,8 @@ class MultiRNN(object):
     def get_final_state(self, index):
         return self._final_state[index]
     
+    def get_mean_state(self, index):
+        return self._mean_state[index]
     
     def get_label_predict_op(self, index):
         return self._label_predicts[index]

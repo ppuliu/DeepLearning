@@ -1,5 +1,5 @@
-TRAIN_DIR=/home/honglei/projects/heterlearning/data/shuffle_10/
-TEST_DIR=/home/honglei/projects/heterlearning/data/shuffle_10_test/
+TRAIN_DIR=/home/honglei/projects/heterlearning/data/sleep_awake
+TEST_DIR=/home/honglei/projects/heterlearning/data/sleep_awake_test
 REG=$1
 RATE=$2
 CELL_SIZE=$3

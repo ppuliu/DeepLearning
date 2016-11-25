@@ -16,11 +16,11 @@ max_epoch=10
 time_bin=1
 multiplier=1
 end_symbol = -1
-cell_size = 8
+cell_size = 128 
 
 keep_prob = 1.0
 reg=0.01
-pos_weight = 100
+pos_weight = 1
 max_grad_norm = 5
 learning_rate=2.0
 
@@ -42,13 +42,16 @@ class TrainMultiRNN(object):
         print('-------------------')
         print("Building model")
         # build the model
-        initializer = tf.random_uniform_initializer(-0.1, 0.1)
+        #initializer = tf.uniform_unit_scaling_initializer()
+        #initializer = tf.truncated_normal_initializer()
+        initializer = tf.random_uniform_initializer(-0.08,0.08)
         with tf.variable_scope("model", initializer=initializer):
             self._multi_rnn = MultiRNN(self._configs, fix_shared)
 
         print('-------------------')
         print("Starting session")
         devconfig = tf.ConfigProto(allow_soft_placement = True)
+        devconfig.gpu_options.allow_growth = True
         session=tf.Session(config = devconfig)
         session.run(tf.initialize_all_variables())
         self._sess=session
@@ -200,12 +203,11 @@ class TrainMultiRNN(object):
 
                 roc_auc, pr_auc = self.run_eval(session, self._train_data_list, verbose=True)
                 print("Epoch: %d Train ROC-AUC: %.3f, PR-AUC: %.3f" % (i + 1, roc_auc, pr_auc))
+                roc_auc, pr_auc = self.run_eval(session, self._val_data_list, verbose=True)
+                print("Epoch: %d Valid ROC-AUC: %.3f, PR-AUC: %.3f" % (i + 1, roc_auc, pr_auc))
                 if roc_auc>=max(auc_histroy):
                     self.save(os.path.join(FLAGS.log_dir, checkpoint_file))
                 auc_histroy.append(roc_auc)
-                roc_auc, pr_auc = self.run_eval(session, self._val_data_list, verbose=True)
-                print("Epoch: %d Valid ROC-AUC: %.3f, PR-AUC: %.3f" % (i + 1, roc_auc, pr_auc))
-
 
             #roc_auc, pr_auc = self.run_eval(session, self._test_data_list, verbose=True)
             #print("Test ROC-AUC: %.3f, PR-AUC: %.3f" % (roc_auc, pr_auc))
@@ -579,7 +581,7 @@ class TrainMultiRNN(object):
                 ################ optional, store all the final states #####################
                 if not verbose:
                     continue
-                final_state_op = self._multi_rnn.get_final_state(data_index)
+                final_state_op = self._multi_rnn.get_mean_state(data_index)
                 state = session.run(final_state_op, {input_placeholder: x, output_placeholder: y})
                 if len(final_states_by_rec[data_index]) == 0:
                     final_states_by_rec[data_index] = state
@@ -597,10 +599,14 @@ class TrainMultiRNN(object):
         rec_vote_label = [np.argmax(np.bincount(label_predict_by_rec[i])) for i in xrange(num_datasets)]
         
         print 'Label prediction by recording:'
+        rec_labels=[]
         for i in xrange(num_datasets):
+            rec_labels.append(self._configs[i].recording_label)
             print('%d : %d' % (self._configs[i].recording_label, rec_vote_label[i]))
         
-        return accuracy, label_predict_by_rec, final_states_by_rec
+      
+        
+        return accuracy, rec_labels, final_states_by_rec
 
     def add_control_symbol(self, x):
         #return
